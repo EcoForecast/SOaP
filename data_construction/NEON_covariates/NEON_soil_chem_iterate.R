@@ -59,7 +59,7 @@ if(file.exists("data/NEON_soil_chm_merge.rds")) {
     soil_chm_old <- read.csv("data/filesToStack10078/stackedFiles/sls_soilChemistry.csv")
     
     # combine them 
-    if(exists("soil_chm_new")){
+    if(exists("data/soil_chm_new")){
       soil_chm <- rbind(soil_chm_old, soil_chm_new)
     } else {
       soil_chm <- soil_chm_old
@@ -71,7 +71,7 @@ if(file.exists("data/NEON_soil_chm_merge.rds")) {
   } else { # if output file exists but to_download is empty, read in older files
     
     # read in older files
-    soil_chm <- read.csv("filesToStack10086/stackedFiles/sls_soilChemistry.csv")
+    soil_chm <- read.csv("data/filesToStack10086/stackedFiles/sls_soilChemistry.csv")
     
   }
 } else { #3. if no output file exists, download everything
