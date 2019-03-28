@@ -143,7 +143,7 @@ for (i in 1:dim(UTM_OSBS_CorrespondingUnitArea)[1])
   m=intersect(which(CHM_OSBS[,2]==UTM_OSBS_CorrespondingUnitArea[i,1]),which(CHM_OSBS[,3]==UTM_OSBS_CorrespondingUnitArea[i,2]));
   CHM_Value[i]=as.numeric(as.character(CHM_OSBS[m,1]));
 }
-name=c("plot ID","Long","Lat","UTM east","UTM north","UTM east of lower left","UTM north of lower left","Mean CHM");
+name=c("Plot ID","Long","Lat","UTM east","UTM north","UTM east of lower left","UTM north of lower left","Mean CHM");
 Output=cbind(soilcore.df$plotID,coord_OSBS[,2],coord_OSBS[,1],UTM_OSBS_Soilcore[,2:3],UTM_OSBS_CorrespondingUnitArea,CHM_Value);
 colnames(Output) <- name
 write.csv(Output,file="/usr3/graduate/wangytj/GE585-Share/OSBS_Soilcore_CorrespondingMeanCHM_OfEachPlot_2014.csv")
@@ -175,7 +175,7 @@ for (i in 1:dim(UTM_STER_CorrespondingUnitArea)[1])
   m=intersect(which(CHM_STER[,2]==UTM_STER_CorrespondingUnitArea[i,1]),which(CHM_STER[,3]==UTM_STER_CorrespondingUnitArea[i,2]));
   CHM_Value[i]=as.numeric(as.character(CHM_STER[m,1]));
 }
-name=c("plot ID","Long","Lat","UTM east","UTM north","UTM east of lower left","UTM north of lower left","Mean CHM");
+name=c("Plot ID","Long","Lat","UTM east","UTM north","UTM east of lower left","UTM north of lower left","Mean CHM");
 Output=cbind(soilcore.df$plotID,coord_STER[,2],coord_STER[,1],UTM_STER_Soilcore[,2:3],UTM_STER_CorrespondingUnitArea,CHM_Value);
 colnames(Output) <- name
 write.csv(Output,file="/usr3/graduate/wangytj/GE585-Share/STER_Soilcore_CorrespondingMeanCHM_OfEachPlot_2013.csv")

@@ -119,3 +119,4 @@ monthly_avg <- precip_mintemp %>%
             precip.mm_sd = sd(Precipitation.mm.day))
 
 saveRDS(monthly_avg, "data/daymet_monthly.rds")
+
