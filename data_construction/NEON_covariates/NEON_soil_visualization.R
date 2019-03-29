@@ -96,7 +96,7 @@ points(dayMetdf$date[dayMetdf$siteID == "STER"], dayMetdf$min_temp.C_avg[dayMetd
 points(dayMetdf$date[dayMetdf$siteID == "CPER"], dayMetdf$min_temp.C_avg[dayMetdf$siteID == "CPER"], type='l', col='purple', lwd=2.5)
 
 
-#plot of precip for each site
+#plot of precip for each sites
 plot(dayMetdf$date[dayMetdf$siteID == "HARV"], dayMetdf$precip.mm_avg[dayMetdf$siteID == "HARV"], type='l', ylim=c(0,20), xlab='year', ylab='Average Precipitation (mm)', col='black', lwd=2.5)
 points(dayMetdf$date[dayMetdf$siteID == "DSNY"], dayMetdf$precip.mm_avg[dayMetdf$siteID == "DSNY"], type='l', col='red', lwd=2.5)
 points(dayMetdf$date[dayMetdf$siteID == "OSBS"], dayMetdf$precip.mm_avg[dayMetdf$siteID == "OSBS"], type='l', col='blue', lwd=2.5)
