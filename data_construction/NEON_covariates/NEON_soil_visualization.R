@@ -80,3 +80,22 @@ for (i in 1:length(sites)){
     scale_x_date("", labels = date_format("%b %Y"))
   print(p + ggtitle(paste0(sites[i], "   litter depth")))
 }
+
+
+#Daymet data visualization
+#plot of min temps for each site
+plot(HARVdta, harv_wx$tmin..deg.c., type='l', ylim=c(-30,25), xlab='year', ylab='Minimum Air Temp (C)')
+points(DSNYdta, dsny_wx$tmin..deg.c., type='l', col=rgb(red=1,green=0,blue=0, alpha=0.5))
+points(OSBSdta, osbs_wx$tmin..deg.c., type='l', col=rgb(red=1,green=1,blue=0, alpha=0.3))
+points(STERdta, ster_wx$tmin..deg.c., type='l', col=rgb(red=0,green=1,blue=1, alpha=0.5))
+points(CPERdta, cper_wx$tmin..deg.c., type='l', col=rgb(red=0,green=0,blue=1, alpha=0.5))
+
+
+#plot of precip for each site
+plot(HARVdta, harv_wx$prcp..mm.day., type='l', ylim=c(0,200), xlab='year', ylab='Precipitation (mm per day)')
+points(DSNYdta, dsny_wx$prcp..mm.day, type='l', col=rgb(red=1,green=0,blue=0, alpha=0.5))
+points(OSBSdta, osbs_wx$prcp..mm.day, type='l', col=rgb(red=1,green=1,blue=0, alpha=0.3))
+points(STERdta, ster_wx$prcp..mm.day, type='l', col=rgb(red=0,green=1,blue=1, alpha=0.5))
+points(CPERdta, cper_wx$prcp..mm.day, type='l', col=rgb(red=0,green=0,blue=1, alpha=0.5))
+
+
