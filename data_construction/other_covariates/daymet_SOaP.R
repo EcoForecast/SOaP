@@ -75,28 +75,6 @@ dayyear <- paste(days.ster, cper_wx$year, sep="-")
 cper_wx$dayyear <-dayyear
 CPERdta <- as.Date(as.character(dayyear), format="%m-%d-%Y")
 
-#plot of min temps for each site
-plot(HARVdta, harv_wx$tmin..deg.c., type='l', ylim=c(-30,25))
-points(DSNYdta, dsny_wx$tmin..deg.c., type='l', col=rgb(red=1,green=0,blue=0, alpha=0.5))
-points(OSBSdta, osbs_wx$tmin..deg.c., type='l', col=rgb(red=1,green=1,blue=0, alpha=0.3))
-points(STERdta, ster_wx$tmin..deg.c., type='l', col=rgb(red=0,green=1,blue=1, alpha=0.5))
-points(CPERdta, cper_wx$tmin..deg.c., type='l', col=rgb(red=0,green=0,blue=1, alpha=0.5))
-
-
-#plot of max temps for each site
-plot(HARVdta, harv_wx$tmax..deg.c., type='l', ylim=c(-20,40))
-points(DSNYdta, dsny_wx$tmax..deg.c., type='l', col=rgb(red=1,green=0,blue=0, alpha=0.5))
-points(OSBSdta, osbs_wx$tmax..deg.c., type='l', col=rgb(red=1,green=1,blue=0, alpha=0.3))
-points(STERdta, ster_wx$tmax..deg.c., type='l', col=rgb(red=0,green=1,blue=1, alpha=0.5))
-points(CPERdta, cper_wx$tmax..deg.c., type='l', col=rgb(red=0,green=0,blue=1, alpha=0.5))
-
-#plot of precip for each site
-plot(HARVdta, harv_wx$prcp..mm.day., type='l', ylim=c(0,200))
-points(DSNYdta, dsny_wx$prcp..mm.day, type='l', col=rgb(red=1,green=0,blue=0, alpha=0.5))
-points(OSBSdta, osbs_wx$prcp..mm.day, type='l', col=rgb(red=1,green=1,blue=0, alpha=0.3))
-points(STERdta, ster_wx$prcp..mm.day, type='l', col=rgb(red=0,green=1,blue=1, alpha=0.5))
-points(CPERdta, cper_wx$prcp..mm.day, type='l', col=rgb(red=0,green=0,blue=1, alpha=0.5))
-
 
 harv_wx$site <- rep('HARV', length(harv_wx$dayyear))
 dsny_wx$site <- rep('DSNY', length(dsny_wx$dayyear))
@@ -110,7 +88,7 @@ all_daymet <- rbind(harv_wx, dsny_wx, osbs_wx, ster_wx, cper_wx)
 precip_mintemp <- cbind.data.frame(all_daymet$site, all_daymet$dayyear, all_daymet$prcp..mm.day., all_daymet$tmin..deg.c.)
 colnames(precip_mintemp) <- c('siteID', 'Date', 'Precipitation.mm.day', 'Average.minimum.temperature.deg.C')
 
-#precip_mintemp$Date <- as.Date(precip_mintemp$Date, format = "%m-%d-%Y")
+precip_mintemp$Date <- as.Date(precip_mintemp$Date, format = "%m-%d-%Y")
 precip_mintemp$dateID <- substr(precip_mintemp$Date, 1, 7)
 monthly_avg <- precip_mintemp %>% 
   group_by(siteID, dateID) %>%                           
@@ -120,7 +98,5 @@ monthly_avg <- precip_mintemp %>%
             precip.mm_sd = sd(Precipitation.mm.day))
 
 saveRDS(monthly_avg, "data/daymet_monthly.rds")
-<<<<<<< HEAD
-=======
 
->>>>>>> 6d999e4144362ad9ee17492069d8711ef1078d50
+
