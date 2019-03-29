@@ -1,6 +1,7 @@
 
 ## call relevant packages
 library(daymetr)
+library(dplyr)
 
 ## I saw the code from Exercise_06 and expanded it to grab the data from all of our sites...
 #LIST OF sites
@@ -119,4 +120,7 @@ monthly_avg <- precip_mintemp %>%
             precip.mm_sd = sd(Precipitation.mm.day))
 
 saveRDS(monthly_avg, "data/daymet_monthly.rds")
+<<<<<<< HEAD
+=======
 
+>>>>>>> 6d999e4144362ad9ee17492069d8711ef1078d50
