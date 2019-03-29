@@ -2,7 +2,7 @@
 # script to download soil chemical data, distributed periodic, dp.10078.001, from NEON
 
 # clear environment, load packages and set file paths
-rm(list=ls())
+#rm(list=ls())
 library(zoo)
 library(neonUtilities)
 

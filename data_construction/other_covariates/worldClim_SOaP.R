@@ -1,6 +1,5 @@
 #Worldclim
 #call packages
-install.packages('raster')
 library(raster)
 library(sp)
 
