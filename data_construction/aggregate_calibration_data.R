@@ -1,23 +1,30 @@
 # combine all calibration data for initial models
 
+library(zoo)
+
 # pull in climate data
 worldclim <- readRDS("data/site_climate_values.rds")
 worldclim$siteID <- worldclim$Site
 worldclim$Site <- NULL
 
 # daymet data
+source("data_construction/other_covariates/daymet_SOaP.R")
 daymet <- readRDS("data/daymet_monthly.rds")
 
 # ITS:16S ratios
+source("data_construction/sequence_processing/01_download_abundance_data.R")
 microbes <- readRDS("data/calibration_abundances.rds")
 
-# soil phys 
+# soil phys
+source("data_construction/NEON_covariates/NEON_soil_phys_iterate.R")
 soil_phys <- readRDS("data/NEON_soil_phys_merge.rds")
 
-# soil chem 
+# soil chem
+source("data_construction/NEON_covariates/NEON_soil_chem_iterate.R")
 soil_chem <- readRDS("data/NEON_soil_chm_merge.rds")
 
 # CHM
+# source("data_function/NEON_covariates/PlotLevelCovariate.R")
 CHM <- as.data.frame(readRDS("data/MeanCHM_FiveSites_AllAreas.rds"))
 CHM$CHM <- CHM$`Mean CHM`
 CHM$`Mean CHM` <- NULL
