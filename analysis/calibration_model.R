@@ -50,15 +50,20 @@ taulitter~dgamma(0.01,0.01)
 for(t in 1:n){
 y[t] ~ dnorm(x[t],tau_obs)
 # missing data model:
+
+
 Z[t,2] ~ dnorm(muTmin,tauTmin)
+
 Z[t,3] ~ dnorm(muPrecip,tauPrecip)
+
 Z[t,4] ~ dnorm(mupH,taupH)
+
 Z[t,5] ~ dnorm(mulitter,taulitter)
 }
 
 #### Process Model
 for(t in 2:n){
-mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + betapH*Z[t,4] + betaLitter*Z[t,5] #+ alpha[t[i]]
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + betapH*Z[t,4] + betaLitter*Z[t,5]*0 #+ alpha[t[i]]
 x[t]~dnorm(mu[t],tau_add)
 }
 
@@ -79,7 +84,7 @@ for(s in 1:length(sites)) {
   z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg,
              site.data$pH, site.data$litterDepth)
   colnames(z) <- c("(Intercept)", "Tmin", "Precip", "pH", "Litter")
-  data1 <- list(y=log(y),n=length(y), x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
+  data1 <- list(y=log(y),n=length(y),x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
                 r_obs=0.1,a_add=0.1,r_add=0.1)
   data1[["Z"]] <- z
   
@@ -107,7 +112,7 @@ for(s in 1:length(sites)) {
                               "tau_obs", "beta_IC", "betaIntercept", 
                               "betaTmin", "betaPrecip", "betapH", "betaLitter", 
                               "tau_alpha","alpha"),
-                              n.iter = 10000)
+                              n.iter = 30000)
   
   # plot fit with confidence interval
   time.rng = c(1,length(time)) ## adjust to zoom in and out
