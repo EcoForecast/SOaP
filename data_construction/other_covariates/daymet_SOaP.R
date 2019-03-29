@@ -1,6 +1,7 @@
 
 ## call relevant packages
 library(daymetr)
+library(dplyr)
 
 ## I saw the code from Exercise_06 and expanded it to grab the data from all of our sites...
 #LIST OF sites
