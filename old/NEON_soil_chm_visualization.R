@@ -1,4 +1,5 @@
 #Script completed by Zoey and Ryan
+
 library("ggplot2")
 library("scales")
 soil_chm_merge <- readRDS("NEON_soil_chm_merge.rds")

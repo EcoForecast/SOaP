@@ -67,17 +67,17 @@ if(file.exists("data/NEON_soil_phys_merge.rds")) {
     soil_core_old <- read.csv("data/filesToStack10086/stackedFiles/sls_soilCoreCollection.csv")
     
     # combine them 
-    if(exists("data/soil_pH_new")){
+    if(exists("soil_pH_new")){
       soil_pH <- rbind(soil_pH_old, soil_pH_new)
     } else {
       soil_pH <- soil_pH_old
     }
-    if(exists("data/soil_moisture_new")){
+    if(exists("soil_moisture_new")){
       soil_moisture <- rbind(soil_moisture_old, soil_moisture_new)
     } else {
       soil_moisture <- soil_moisture_old
     }
-    if(exists("data/soil_core_new")){
+    if(exists("soil_core_new")){
       soil_core <- rbind(soil_core_old, soil_core_new)
     } else {
       soil_core <- soil_core_old
