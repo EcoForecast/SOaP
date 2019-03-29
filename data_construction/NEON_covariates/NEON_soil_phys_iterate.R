@@ -6,7 +6,7 @@
 
 # script to download soil physical data, distributed periodic, dp.10086.001, from NEON
 # clear environment, load packages and set file paths
-rm(list=ls())
+#rm(list=ls())
 library(zoo)
 library(neonUtilities)
 
