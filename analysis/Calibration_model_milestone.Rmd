@@ -1,0 +1,209 @@
+---
+title: "Calibration model"
+author: "Zoey Werbin"
+date: "3/29/2019"
+output: html_document
+---
+
+In this markdown document, we'll run through the creation of our dynamic linear models for the "historical" data from 5 NEON sites. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily  precipitation and minimum daily temperature, both averaged to the month level.
+
+We have other covariates that describe each site, such as mean canopy height, and climate descriptors (MAP and MAT). We also have covariates such as pH, C:N ratio, and soil temperature, that we hope to include if we receive more data from NEON - in this historical time-series, we only have 1-3 values for each of these soil chemical or physical characteristics. 
+
+First, let's run the script that will download and aggregate our covariate data, and read in the output. This will only run correctly if our working directory is the project directory - confirm that here:
+
+```{r setup}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+#setwd("..")
+print(getwd())
+```
+Load directories
+```{r, include=FALSE,echo=FALSE}
+library(rjags)
+library(daymetr)
+library(zoo)
+library(ecoforecastR)
+library(dplyr)
+```
+
+Now, let's format our data object. First we'll look at the diagnostics for one of our sites, STER, in-depth. Later we'll loop through and look at the model fits for the other four sites.
+
+```{r}
+# source file that downloads all of the data - only need to run once
+#source("data_construction/aggregate_calibration_data.R")
+
+### read in dataframe with response variable and covariates
+df <- readRDS("data/calibration_model_data.rds")
+
+# extract data from STER site
+site.data <- df[df$siteID=="STER",]
+  y <- site.data$ratio
+  
+  # convert dateID to date
+  time <- site.data$dateID
+  time <- as.yearmon(time, format="%Y-%m")
+  time <- as.Date(time, format="%Y-%m")
+  
+  # set up data object
+  z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg)
+  colnames(z) <- c("betaIntercept", "betaTmin", "betaPrecip")
+  data <- list(y=log(y),n=length(y), x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
+                r_obs=0.1,a_add=0.1,r_add=0.1)
+  data[["Z"]] <- z
+```
+
+Now let's set up our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation. This code is adapted from the JAGS output of ecoforecast::fit_dlm. 
+```{r}
+
+ourmodel <- "model{
+
+#### Priors
+x[1] ~ dnorm(x_ic,tau_ic)
+tau_obs ~ dgamma(a_obs,r_obs)
+tau_add ~ dgamma(a_add,r_add)
+
+#### Random Effects
+tau_alpha~dgamma(0.1,0.1)
+for(i in 1:n){
+alpha[i]~dnorm(0,tau_alpha)
+}
+
+#### Fixed Effects
+beta_IC~dnorm(0,0.001)
+betaIntercept~dnorm(0,0.001)
+betaTmin~dnorm(0,0.001)
+betaPrecip~dnorm(0,0.001)
+
+muTmin~dnorm(0,0.001)
+muPrecip~dnorm(0,0.001)
+
+tauTmin~dgamma(0.01,0.01)
+tauPrecip~dgamma(0.01,0.01)
+
+#### Data Model
+for(t in 1:n){
+y[t] ~ dnorm(x[t],tau_obs)
+# missing data model:
+Z[t,2] ~ dnorm(muTmin,tauTmin)
+Z[t,3] ~ dnorm(muPrecip,tauPrecip)
+}
+
+#### Process Model
+for(t in 2:n){
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + alpha[t[i]]
+x[t]~dnorm(mu[t],tau_add)
+}
+
+}"
+```
+
+Here we run the model and assess convergence, and check whether parameters are correlated.
+```{r}
+  j.model   <- jags.model (file = textConnection(ourmodel),
+                           data = data,
+                          # inits = init,
+                           n.chains = 3)
+  
+  jags.out   <- coda.samples (model = j.model,
+                              variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin",
+                                                 "betaPrecip"),
+                              n.iter = 20000)
+  # view trace plots
+  plot(jags.out)
+  
+  # check psrf scores; we want these to be under 1.1
+  gelman.diag(jags.out)
+  
+  # plot correlation matrix of all of our parameters
+  out <- as.matrix(jags.out)
+  pairs(out)
+```
+All values are less than 1.05, so the model looks like it has converged. The plot of correlations shows that precipitation and temperature are negatively correlated, which isn't surprising, as they're both climatic variables. BetaIntercept is also correlated with most of the other betas. Now we'll run it again, monitoring the "x" variable this time. 
+  
+```{r}  
+  jags.out   <- coda.samples (model = j.model,
+                              variable.names = c("x","tau_add",
+                              "tau_obs", "beta_IC", "betaIntercept", 
+                              "betaTmin", "betaPrecip","tau_alpha","alpha"),
+                              n.iter = 20000)
+```
+Let's visualize the model fit. This site has 10 dates, but other sites have even fewer, so this will likely be our best-fitting model.
+```{r}
+
+  # plot fit with confidence interval
+  time.rng = c(1,length(time)) ## adjust to zoom in and out
+  out <- as.matrix(jags.out)
+  x.cols <- grep("^x",colnames(out)) ## grab all columns that start with the letter x
+  ci <- apply(exp(out[,x.cols]),2,quantile,c(0.025,0.5,0.975)) ## model was fit on log scale
+  
+  plot(time, ci[2,], type='n', ylim=range(y,na.rm=TRUE), ylab="", 
+       log='y', xlim=time[time.rng], xaxt="n", 
+       main="Time-series for STER")
+  mtext(text = "Bacteria+Archaea : Fungi", side=2, line=2,cex=0.6)
+  
+  ## adjust x-axis labels
+  axis.Date(1, at=seq(time[time.rng[1]],time[time.rng[2]],by='month'), format = "%Y-%m")
+  ecoforecastR::ciEnvelope(time,ci[1,],ci[3,],col=ecoforecastR::col.alpha("lightBlue",0.75))
+  points(time,y,pch="+",cex=0.5)
+
+```
+
+
+Now let's view all 5 sites together! We have to run this for more iterations, otherwise our HARV site (which only has 5 observations) won't converge.
+```{r}
+
+par(mfrow=c(5,1), mar=c(1.7,3.1,1.5,1.1), mgp=c(3,.6,0))
+# loop through all 5 sites
+sites <- c("DSNY", "HARV", "OSBS", "CPER", "STER")
+for(s in 1:length(sites)) {
+
+  site.data <- df[df$siteID==sites[s],]
+  y <- site.data$ratio
+  
+  # convert dateID to date
+  time <- site.data$dateID
+  time <- as.yearmon(time, format="%Y-%m")
+  time <- as.Date(time, format="%Y-%m")
+  
+   # set up data object
+  z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg)
+  colnames(z) <- c("betaIntercept", "betaTmin", "betaPrecip")
+  data <- list(y=log(y),n=length(y), x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
+                r_obs=0.1,a_add=0.1,r_add=0.1)
+  data[["Z"]] <- z
+  
+  
+  j.model   <- jags.model (file = textConnection(ourmodel),
+                           data = data,
+                           n.chains = 3)
+  
+  jags.out   <- coda.samples (model = j.model,
+                              variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin",
+                                                 "betaPrecip"),
+                              n.iter = 80000)
+    print(gelman.diag(jags.out)) # check psrf scores for each model
+
+  jags.out   <- coda.samples (model = j.model,
+                              variable.names = c("x","tau_add",
+                              "tau_obs", "beta_IC", "betaIntercept", 
+                              "betaTmin", "betaPrecip",
+                              "tau_alpha","alpha"),
+                              n.iter = 80000)
+  
+
+  # plot fit with confidence interval
+  time.rng = c(1,length(time)) 
+  out <- as.matrix(jags.out)
+  x.cols <- grep("^x",colnames(out)) ## grab all columns that start with the letter x
+  ci <- apply(exp(out[,x.cols]),2,quantile,c(0.025,0.5,0.975)) ## model was fit on log scale
+  
+  plot(time, ci[2,], type='n', ylim=range(y,na.rm=TRUE), ylab="", 
+       log='y', xlim=time[time.rng], xaxt="n", 
+       main=paste0("Time-series for ",sites[s]))
+  mtext(text = "Bacteria+Archaea : Fungi", side=2, line=2,cex=0.6)
+  
+  ## adjust x-axis labels
+  axis.Date(1, at=seq(time[time.rng[1]],time[time.rng[2]],by='month'), format = "%Y-%m")
+  ecoforecastR::ciEnvelope(time,ci[1,],ci[3,],col=ecoforecastR::col.alpha("lightBlue",0.75))
+  points(time,y,pch="+",cex=0.5)
+}
+```
