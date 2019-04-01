@@ -1,13 +1,13 @@
 ---
 title: "Calibration model"
-author: "Zoey Werbin"
+author: "Zoey Werbin, Ryan Quinn, Steve Gougherty, Yetianjian Wang"
 date: "3/29/2019"
 output: html_document
 ---
 
-In this markdown document, we'll run through the creation of our dynamic linear models for the "historical" data from 5 NEON sites. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily  precipitation and minimum daily temperature, both averaged to the month level.
+In this markdown document, we'll run through the creation of our dynamic linear models for the "historical" data from 5 NEON sites. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily precipitation and minimum daily temperature, both averaged to the month level.
 
-We have other covariates that describe each site, such as mean canopy height, and climate descriptors (MAP and MAT). We also have covariates such as pH, C:N ratio, and soil temperature, that we hope to include if we receive more data from NEON - in this historical time-series, we only have 1-3 values for each of these soil chemical or physical characteristics. 
+We have other covariates that describe each site, such as mean canopy height, and climate descriptors (MAP and MAT). These can later be incorporated into a hierarchical model that ties together our 5 sites. We also have time-series covariates such as pH, C:N ratio, and soil temperature, that we hope to include if we receive more data from NEON - in this historical time-series, we only have 1-3 values for each of these soil chemical or physical characteristics.
 
 First, let's run the script that will download and aggregate our covariate data, and read in the output. This will only run correctly if our working directory is the project directory - confirm that here:
 
@@ -16,8 +16,8 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 #setwd("..")
 print(getwd())
 ```
-Load directories
-```{r, include=FALSE,echo=FALSE}
+Load directories:
+```{r, echo=FALSE}
 library(rjags)
 library(daymetr)
 library(zoo)
@@ -28,9 +28,10 @@ library(dplyr)
 Now, let's format our data object. First we'll look at the diagnostics for one of our sites, STER, in-depth. Later we'll loop through and look at the model fits for the other four sites.
 
 ```{r}
-# source file that downloads all of the data - only need to run once
-#source("data_construction/aggregate_calibration_data.R")
-
+# source file that downloads/aggregates all of the data - only need to run once. takes less than 2 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
+if(!file.exists("data/calibration_model_data.rds")){
+  source("data_construction/aggregate_calibration_data.R")
+}
 ### read in dataframe with response variable and covariates
 df <- readRDS("data/calibration_model_data.rds")
 
@@ -51,7 +52,7 @@ site.data <- df[df$siteID=="STER",]
   data[["Z"]] <- z
 ```
 
-Now let's set up our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation. This code is adapted from the JAGS output of ecoforecast::fit_dlm. 
+Now let's set up our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation. This code is adapted from the JAGS output of ecoforecast::fit_dlm. In the missing data model, we pull from distributions of our covariates; precipitation has a gamma distribution, because we can't have negative values, but temperature has a Normal distribution because negative values are fine. We have uninformative precisions drawn from a gamma distribution with shape and rate of 0.1.
 ```{r}
 
 ourmodel <- "model{
@@ -74,7 +75,7 @@ betaTmin~dnorm(0,0.001)
 betaPrecip~dnorm(0,0.001)
 
 muTmin~dnorm(0,0.001)
-muPrecip~dnorm(0,0.001)
+muPrecip~dgamma(0.01,0.01)
 
 tauTmin~dgamma(0.01,0.01)
 tauPrecip~dgamma(0.01,0.01)
@@ -106,7 +107,7 @@ Here we run the model and assess convergence, and check whether parameters are c
   jags.out   <- coda.samples (model = j.model,
                               variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin",
                                                  "betaPrecip"),
-                              n.iter = 20000)
+                              n.iter = 30000)
   # view trace plots
   plot(jags.out)
   
@@ -117,15 +118,17 @@ Here we run the model and assess convergence, and check whether parameters are c
   out <- as.matrix(jags.out)
   pairs(out)
 ```
-All values are less than 1.05, so the model looks like it has converged. The plot of correlations shows that precipitation and temperature are negatively correlated, which isn't surprising, as they're both climatic variables. BetaIntercept is also correlated with most of the other betas. Now we'll run it again, monitoring the "x" variable this time. 
+
+All values are less than 1.05, so the model looks like it has converged. The plot of correlations shows that precipitation and temperature are negatively correlated, which isn't surprising, as they're both climatic variables. BetaIntercept is also correlated with most of the other betas. Now we'll run it again, monitoring the "x" variable this time, along with the random year effects. 
   
 ```{r}  
   jags.out   <- coda.samples (model = j.model,
                               variable.names = c("x","tau_add",
                               "tau_obs", "beta_IC", "betaIntercept", 
                               "betaTmin", "betaPrecip","tau_alpha","alpha"),
-                              n.iter = 20000)
+                              n.iter = 30000)
 ```
+
 Let's visualize the model fit. This site has 10 dates, but other sites have even fewer, so this will likely be our best-fitting model.
 ```{r}
 
@@ -147,8 +150,9 @@ Let's visualize the model fit. This site has 10 dates, but other sites have even
 
 ```
 
+Our confidence interval is quite large. Hopefully it will be constrained by future improvements in our microbial abundance data processing, as well as incorporation of spatial information.
 
-Now let's view all 5 sites together! We have to run this for more iterations, otherwise our HARV site (which only has 5 observations) won't converge.
+Now let's view all 5 sites together! We have to run this for an increased number of iterations, otherwise our HARV site (which only has 5 observations) won't converge. We fit the models using log scale, but we'll view the values un-logged.
 ```{r}
 
 par(mfrow=c(5,1), mar=c(1.7,3.1,1.5,1.1), mgp=c(3,.6,0))
@@ -180,14 +184,15 @@ for(s in 1:length(sites)) {
                               variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin",
                                                  "betaPrecip"),
                               n.iter = 80000)
-    print(gelman.diag(jags.out)) # check psrf scores for each model
+  print(paste0("Model diagnostics for site: ", sites[s]))
+  print(gelman.diag(jags.out)) # check psrf scores for each model
 
   jags.out   <- coda.samples (model = j.model,
                               variable.names = c("x","tau_add",
                               "tau_obs", "beta_IC", "betaIntercept", 
                               "betaTmin", "betaPrecip",
                               "tau_alpha","alpha"),
-                              n.iter = 80000)
+                              n.iter = 100000)
   
 
   # plot fit with confidence interval
@@ -207,3 +212,6 @@ for(s in 1:length(sites)) {
   points(time,y,pch="+",cex=0.5)
 }
 ```
+
+
+In these plots, we see a potential relationship between the number of sampling points we have, and the width of the CI. CPER and HARV only have 5-6 points each, and their CIs span the entire range of Y. STER and OSBS have 7 and 10 sampling points, respectively, and have much narrower CIs. We therefore expect these forecasts to improve as we incorporate data from 2016 and 2017.

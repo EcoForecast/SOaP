@@ -2,6 +2,8 @@
 ## call relevant packages
 library(daymetr)
 library(dplyr)
+package.lo
+detach(package:plyr)
 
 ## I saw the code from Exercise_06 and expanded it to grab the data from all of our sites...
 #LIST OF sites
@@ -91,8 +93,8 @@ colnames(precip_mintemp) <- c('siteID', 'Date', 'Precipitation.mm.day', 'Average
 precip_mintemp$Date <- as.Date(precip_mintemp$Date, format = "%m-%d-%Y")
 precip_mintemp$dateID <- substr(precip_mintemp$Date, 1, 7)
 monthly_avg <- precip_mintemp %>% 
-  group_by(siteID, dateID) %>%                           
-  summarise(min_temp.C_avg = mean(Average.minimum.temperature.deg.C), 
+  dplyr::group_by(siteID, dateID) %>%                           
+  dplyr::summarise(min_temp.C_avg = mean(Average.minimum.temperature.deg.C), 
             min_temp.C_sd = sd(Average.minimum.temperature.deg.C),
             precip.mm_avg = mean(Precipitation.mm.day),
             precip.mm_sd = sd(Precipitation.mm.day))

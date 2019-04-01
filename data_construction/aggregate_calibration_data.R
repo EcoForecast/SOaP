@@ -3,11 +3,15 @@ library(dplyr)
 library(zoo)
 
 # daymet data
+if(!file.exists("data/daymet_monthly.rds")){
 source("data_construction/other_covariates/daymet_SOaP.R")
+}
 daymet <- readRDS("data/daymet_monthly.rds")
 
 # ITS:16S ratios
-source("data_construction/sequence_processing/01_download_abundance_data.R")
+if(!file.exists("data/calibration_abundances.rds")){
+  source("data_construction/microbial_data/01_download_abundance_data.R")
+}
 microbes <- readRDS("data/calibration_abundances.rds")
 
 # soil phys
@@ -40,8 +44,8 @@ if(file.exists("data/MeanCHM_FiveSites_AllAreas.rds")){
 
 # soil physical properties
 soil_phys <- soil_phys %>% 
-  group_by(siteID, dateID) %>% 
-  summarise(pH = mean(soilInCaClpH),
+  dplyr::group_by(siteID, dateID) %>% 
+  dplyr::summarise(pH = mean(soilInCaClpH),
             pH_sd = sd(soilInCaClpH),
             standingWaterDepth = mean(standingWaterDepth),
             standingWaterDepth_sd = sd(standingWaterDepth),
@@ -52,8 +56,8 @@ soil_phys <- soil_phys %>%
 
 # soil chemical properties
 soil_chem <- soil_chem %>% 
-  group_by(siteID, dateID) %>% 
-  summarise(percentC = mean(organicCPercent),
+  dplyr::group_by(siteID, dateID) %>% 
+  dplyr::summarise(percentC = mean(organicCPercent),
             percentC_sd = sd(organicCPercent),
             CNratio = mean(CNratio),
             CNratio_sd = sd(CNratio))
