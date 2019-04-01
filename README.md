@@ -29,3 +29,6 @@ Note:
 1. CPER and STER only have 2013 data for CHM, and DSNY, HARV, OSBS only have 2014 data for CHM.
 2. Running through 5 "Demo" scripts can take hours. 5 output csv files from r scripts starting with "Demo" are in advance generated and stored in the same folder with "XXXX_Soilcore_CorrespondingMeanCHM_OfEachPlot_YYYY.csv" that    is to be generated. One can directly run "ObtainingAndCalculatingTheLocatingUnitAreaOfEachPlot.R" to generate the 
 "XXXX_Soilcore_CorrespondingMeanCHM_OfEachPlot_YYYY.csv" files.
+
+## How to visualize covariate data
+Data visualization script is located within "data_construction/" and runs scripts to download the covariates. It can be run without running the full aggregate_calibration_data.R script.
