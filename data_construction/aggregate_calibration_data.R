@@ -16,11 +16,11 @@ microbes <- readRDS("data/calibration_abundances.rds")
 
 # soil phys
 source("data_construction/NEON_covariates/NEON_soil_phys_iterate.R")
-soil_phys <- readRDS("data/NEON_soil_phys_merge.rds")
+soil_phys_raw <- readRDS("data/NEON_soil_phys_merge.rds")
 
 # soil chem
 source("data_construction/NEON_covariates/NEON_soil_chem_iterate.R")
-soil_chem <- readRDS("data/NEON_soil_chm_merge.rds")
+soil_chem_raw <- readRDS("data/NEON_soil_chm_merge.rds")
 
 #### spatial covariates - not used for initial time-series ####
 
@@ -43,24 +43,16 @@ if(file.exists("data/MeanCHM_FiveSites_AllAreas.rds")){
 # aggregate data by month and site
 
 # soil physical properties
+soil_phys <- soil_phys_raw[,colnames(soil_phys_raw) %in% c("siteID", "soilInCaClpH", "litterDepth", "soilTemp", "dateID")]
+
 soil_phys <- soil_phys %>% 
   dplyr::group_by(siteID, dateID) %>% 
-  dplyr::summarise(pH = mean(soilInCaClpH),
-            pH_sd = sd(soilInCaClpH),
-            standingWaterDepth = mean(standingWaterDepth),
-            standingWaterDepth_sd = sd(standingWaterDepth),
-            soilTemp = mean(soilTemp),
-            soilTemp_sd = sd(soilTemp),
-            litterDepth = mean(litterDepth),
-            litterDepth_sd = sd(litterDepth))
+  dplyr::summarise_all(funs(mean, sd), na.rm = TRUE)
 
-# soil chemical properties
+soil_chem <- soil_chem_raw[,colnames(soil_chem_raw) %in% c("siteID", "organicCPercent", "CNratio", "dateID")]
 soil_chem <- soil_chem %>% 
   dplyr::group_by(siteID, dateID) %>% 
-  dplyr::summarise(percentC = mean(organicCPercent),
-            percentC_sd = sd(organicCPercent),
-            CNratio = mean(CNratio),
-            CNratio_sd = sd(CNratio))
+  dplyr::summarise_all(funs(mean, sd), na.rm = TRUE)
 
 df1 <- merge(soil_phys, soil_chem, all=T)
 df2 <- merge(daymet, microbes) # since we don't have all=T, we will drop any dates not in the calibration abundances
