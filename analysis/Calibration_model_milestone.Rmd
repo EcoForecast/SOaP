@@ -45,7 +45,7 @@ site.data <- df[df$siteID=="STER",]
   time <- as.Date(time, format="%Y-%m")
   
   # set up data object
-  z <- cbind(rep(1,length(OBS)), site.data$min_temp.C_avg, site.data$precip.mm_avg, site.data$pH, site.data$litterDepth)
+  z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg, site.data$pH, site.data$litterDepth)
   colnames(z) <- c("betaIntercept", "betaTmin", "betaPrecip","betapH", "betaLitter")
   data <- list(OBS=log(y),n=length(y), x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
                 r_obs=0.1,a_add=0.1,r_add=0.1)
