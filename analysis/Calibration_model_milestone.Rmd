@@ -73,30 +73,21 @@ beta_IC~dnorm(0,0.001)
 betaIntercept~dnorm(0,0.001)
 betaTmin~dnorm(0,0.001)
 betaPrecip~dnorm(0,0.001)
-#betapH~dnorm(0,0.001)
-betaLitter~dnorm(0,0.001)
 muTmin~dnorm(0,0.001)
 muPrecip~dnorm(0,0.001)
-#mupH~dnorm(0,0.001)
-muLitter~dnorm(0,0.001) 
 tauTmin~dgamma(0.01,0.01)
 tauPrecip~dgamma(0.01,0.01)
-#taupH~dgamma(0.01,0.01)
- tauLitter~dgamma(0.01,0.01)
 
 #### Data Model
 for(t in 1:n){
 OBS[t] ~ dnorm(x[t],tau_obs)
 Z[t,2] ~ dnorm(muTmin,tauTmin)
 Z[t,3] ~ dnorm(muPrecip,tauPrecip)
-#Z[t,4] ~ dnorm(mupH,taupH)
-Z[t,5] ~ dnorm(muLitter,tauLitter)
 }
 
 #### Process Model
 for(t in 2:n){
-mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + betaLitter*Z[t,5] + alpha[t[i]]
-#betapH*Z[t,4] + 
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + alpha[t[i]]
 
 x[t]~dnorm(mu[t],tau_add)
 }
@@ -112,9 +103,7 @@ Here we run the model and assess convergence, and check whether parameters are c
                            n.chains = 3)
   
   jags.out   <- coda.samples (model = j.model,
-                              variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin",
-                                                 "betaPrecip", #"betapH", 
-                                                 "betaLitter"),
+                              variable.names = c("tau_add","tau_obs", "beta_IC", "betaIntercept", "betaTmin", "betaPrecip"),
                               n.iter = 30000)
   # view trace plots
   #plot(jags.out)
@@ -167,6 +156,7 @@ Now let's view all 5 sites together! We have to run this for an increased number
 par(mfrow=c(5,1), mar=c(1.7,3.1,1.5,1.1), mgp=c(3,.6,0))
 # loop through all 5 sites
 sites <- c("DSNY", "HARV", "OSBS", "CPER", "STER")
+s <- 3
 for(s in 1:length(sites)) {
 
   site.data <- df[df$siteID==sites[s],]
@@ -221,6 +211,7 @@ for(s in 1:length(sites)) {
   axis.Date(1, at=seq(time[time.rng[1]],time[time.rng[2]],by='month'), format = "%Y-%m")
   ecoforecastR::ciEnvelope(time,ci[1,],ci[3,],col=ecoforecastR::col.alpha("lightBlue",0.75))
   points(time,y,pch="+",cex=0.5)
+  if (s==3){ saveRDS(out, "OSBS.jags.out.rds")}
 }
 ```
 
