@@ -48,7 +48,7 @@ tau_add ~ dgamma(a_add,r_add)
   }
 
 #### Fixed Effects
-beta_IC~dgamma(0.01,0.01)
+beta_IC~dnorm(0,0.001)
 betaIntercept~dnorm(0,0.001)
 betaTmin~dnorm(0,0.001)
 betaPrecip~dgamma(0.01,0.01)
@@ -100,7 +100,7 @@ STER <- real_data[real_data$siteID=="STER",]
 jags.out <- readRDS("data/cal.jags.out.rds")
 
 mc3.out <- jags.out
-out = list(params=NULL,predict=NULL,model=j.model,data=data)
+out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
  mfit = as.matrix(mc3.out,chains=TRUE)
  pred.cols = union(grep("x[",colnames(mfit),fixed=TRUE),grep("mu[",colnames(mfit),fixed=TRUE))
  chain.col = which(colnames(mfit)=="CHAIN")
@@ -118,8 +118,7 @@ trans <- 0.8       ## set transparancy
 time = 1:(NT*2)    ## total time
 time1 = 1:NT       ## calibration period
 time2 = time1+NT   ## forecast period
- 
-dim(N)
+NS <- 10
 
 ppt_ensemble <- readRDS("data/climate_ensembles.rds")
 ppt_ensemble <- ppt_ensemble[[2]]
@@ -151,14 +150,13 @@ forecastN <- function(IC,betaIntercept,alpha,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
   }
   return(N)
 }
-s <- 1 # don't really know why
-NS <- 10
+
 plot.run <- function(){
   sel = seq(1,10)
   plot(time,time,type='n',ylim=c(4,31), ylab="N")
   ecoforecastR::ciEnvelope(time1,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
   lines(time1,ci[2,sel],col="blue")
-  points(time1,STER[,"log_BF_ratio"])
+  points(time1,log(STER[,"ratio"]))
 }
 ```
 
@@ -222,7 +220,7 @@ ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],tra
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
 
-Now for driver uncertainty:
+Now for driver uncertainty (precipitation and temperature, which came from the same 10 ensembles):
 ```{r}
 ## sample driver rows
 drow = sample.int(nrow(ppt_ensemble),Nmc,replace=TRUE)
@@ -243,8 +241,8 @@ ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3]
 ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
 ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
 lines(time2,N.I.ci[2,],lwd=0.5)
-
 ```
+Our driver uncertainty is very small - negligible compared to the other uncertainties, possibly because driver values were well-constrained, i.e. ensembles mostly agreed with each other.
  
 Process error uncertainty:
 ```{r}
@@ -268,5 +266,26 @@ ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3]
 ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
 ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
 lines(time2,N.I.ci[2,],lwd=0.5)
-
 ```
+
+We don't have a random site effect because our model isn't hierarchical. We're just looking at one NEON site (STER) right now. So let's go ahead and partition the variance!
+```{r}
+### calculation of variances
+varI     <- apply(N.I,2,var, na.rm=T)
+varIP    <- apply(N.IP,2,var, na.rm=T)
+varIPD   <- apply(N.IPD,2,var, na.rm=T)
+varIPDE  <- apply(N.IPDE,2,var, na.rm=T)
+#varIPDEA <- apply(N.IPDEA,2,var) # we only have one site
+varMat   <- rbind(varI,varIP,varIPD,varIPDE)#,varIPDEA)
+
+## in-sample stacked area plot
+V.pred.rel.in <- apply(varMat[-5,],2,function(x) {x/max(x)})
+plot(time2,V.pred.rel.in[1,],ylim=c(0,1),type='n',main="Relative Variance: In-Sample",ylab="Proportion of Variance",xlab="time")
+ciEnvelope(time2,rep(0,ncol(V.pred.rel.in)),V.pred.rel.in[1,],col=N.cols[1])
+ciEnvelope(time2,V.pred.rel.in[1,],V.pred.rel.in[2,],col=N.cols[2])
+ciEnvelope(time2,V.pred.rel.in[2,],V.pred.rel.in[3,],col=N.cols[3])
+ciEnvelope(time2,V.pred.rel.in[3,],V.pred.rel.in[4,],col=N.cols[4])
+legend("topright",legend=c("Process","Driver","Parameter","InitCond"),col=rev(N.cols[-5]),lty=1,lwd=5)
+```
+
+We have almost no driver or parameter uncertainty (driver uncertainty is there, but for some reason being masked by process error. Parameter uncertainty looks like it was too small to plot.) 
