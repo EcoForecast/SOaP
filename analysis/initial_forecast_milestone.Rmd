@@ -1,0 +1,272 @@
+---
+title: "Forecasting model"
+author: "Zoey Werbin, Ryan Quinn, Steve Gougherty, Yetianjian Wang"
+date: "3/29/2019"
+output: html_document
+---
+
+In this markdown document, we'll run through a forecast using our dynamic linear models for the "historical" data from 5 NEON sites. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily precipitation and minimum daily temperature, both averaged to the month level.
+
+```{r setup}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+#setwd("..")
+print(getwd())
+```
+Load directories:
+```{r, echo=FALSE}
+library(rjags)
+library(daymetr)
+library(zoo)
+library(ecoforecastR)
+library(dplyr)
+```
+
+Now, let's format our data object. First we'll look at the diagnostics for one of our sites, STER, in-depth. Later we'll loop through and look at the model fits for the other four sites.
+
+```{r}
+# source file that downloads/aggregates all of the data - only need to run once. takes less than 2 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
+if(!file.exists("data/cal.jags.out.rds")){
+  cat("Please run calibration model script (Rmarkdown file) before creating these forecasts.")
+}
+### read in dataframe with response variable and covariates
+jags.out <- readRDS("data/cal.jags.out.rds")
+```
+
+Let's look at our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation. In the missing data model, we pull from distributions of our covariates; precipitation has a gamma distribution, because we can't have negative values, but temperature has a Normal distribution because negative values are fine. We have uninformative precisions drawn from a gamma distribution with shape and rate of 0.1.
+```{r}
+ourmodel <- "  model{
+  
+#### Priors
+x[1] ~ dnorm(x_ic,tau_ic)
+tau_obs ~ dgamma(a_obs,r_obs)
+tau_add ~ dgamma(a_add,r_add)
+
+#### Random Effects
+  tau_alpha~dgamma(0.1,0.1)
+  for(i in 1:n){                  
+  alpha[i]~dnorm(0,tau_alpha)
+  }
+
+#### Fixed Effects
+beta_IC~dgamma(0.01,0.01)
+betaIntercept~dnorm(0,0.001)
+betaTmin~dnorm(0,0.001)
+betaPrecip~dgamma(0.01,0.01)
+muTmin~dnorm(0,0.001)
+muPrecip~dnorm(0,0.001)
+tauTmin~dgamma(0.01,0.01)
+tauPrecip~dgamma(0.01,0.01)
+
+
+#### Data Model
+for(t in 1:n){
+OBS[t] ~ dnorm(x[t],tau_obs)
+Z[t,2] ~ dnorm(muTmin,tauTmin)
+Z[t,3] ~ dnorm(muPrecip,tauPrecip)
+}
+
+#### Process Model
+for(t in 2:n){
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + alpha[t[i]]
+x[t]~dnorm(mu[t],tau_add)
+}
+
+}"
+```
+
+
+Let's take a look at our driver ensembles for our calibration period:
+```{r}
+ppt <- readRDS("data/climate_ensembles.rds") # created using load_ERA5 function - only runs on SCC
+# view temperature ensemble
+temp <- ppt[[1]]
+plot(1:length(temp[1,]),temp[1,],type='n',ylim=range(temp[1,]),xlab="time",ylab="temperature (c)")
+for(i in 1:10){
+  lines(1:length(temp[1,]),temp[i,],lwd=0.5,col="grey")
+}
+
+#view precipitation ensemble
+precip <- ppt[[2]]
+plot(1:length(precip[1,]),precip[1,],type='n',ylim=range(precip[1,]),xlab="time",ylab="precip (cm)")
+for(i in 1:10){
+  lines(1:length(precip[1,]),precip[i,],lwd=0.5,col="grey")
+}
+```
+
+Load in our calibration model data:
+```{r}
+real_data <- readRDS("data/calibration_model_data.rds")
+STER <- real_data[real_data$siteID=="STER",]
+jags.out <- readRDS("data/cal.jags.out.rds")
+
+mc3.out <- jags.out
+out = list(params=NULL,predict=NULL,model=j.model,data=data)
+ mfit = as.matrix(mc3.out,chains=TRUE)
+ pred.cols = union(grep("x[",colnames(mfit),fixed=TRUE),grep("mu[",colnames(mfit),fixed=TRUE))
+ chain.col = which(colnames(mfit)=="CHAIN")
+ out$predict = mat2mcmc.list(mfit[,c(chain.col,pred.cols)])
+ out$params   = mat2mcmc.list(mfit[,-pred.cols])
+
+
+# settings
+NT = 10
+s <- 1             ## Focal site for forward simulation
+Nmc = 1000         ## set number of Monte Carlo draws
+ylim = c(exp(4),exp(30))  ## set Y range on plot
+N.cols <- c("black","red","green","blue","orange") ## set colors
+trans <- 0.8       ## set transparancy
+time = 1:(NT*2)    ## total time
+time1 = 1:NT       ## calibration period
+time2 = time1+NT   ## forecast period
+ 
+dim(N)
+
+ppt_ensemble <- readRDS("data/climate_ensembles.rds")
+ppt_ensemble <- ppt_ensemble[[2]]
+# 
+ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,NT) ## driver
+## parameters
+params <- as.matrix(out$params)
+param.mean <- apply(params,2,mean)
+## initial conditions
+IC.orig <- as.matrix(out$predict)
+NT <- 10
+NS <- 10
+s <- 5
+ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
+
+```
+
+Here's the function we'll use for our forecast, analogous to the process model in our JAGS code:
+```{r}
+# our function
+forecastN <- function(IC,betaIntercept,alpha,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
+  N <- matrix(NA,n,NT)  ## storage
+  Nprev <- IC           ## initialize
+  N[,1] <- Nprev
+  for(t in 2:NT){
+      mu = beta_IC*Nprev + betaIntercept*1 + betaPrecip*ppt[,t] + alpha  
+      N[,t] <- rlnorm(n,log(mu),Q)  
+      Nprev <- N[,t]        ## update IC
+  }
+  return(N)
+}
+s <- 1 # don't really know why
+NS <- 10
+plot.run <- function(){
+  sel = seq(1,10)
+  plot(time,time,type='n',ylim=c(4,31), ylab="N")
+  ecoforecastR::ciEnvelope(time1,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
+  lines(time1,ci[2,sel],col="blue")
+  points(time1,STER[,"log_BF_ratio"])
+}
+```
+
+
+Deterministic forecast (every input is a mean, rather than full distribution):
+```{r}
+ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
+
+
+N.det <- forecastN(IC=mean(IC.orig[,"x[10]"]),
+                   betaIntercept=param.mean["betaIntercept"],
+                   alpha=param.mean["tau_alpha"],
+                   betaPrecip=param.mean["betaPrecip"],
+                   beta_IC = param.mean["beta_IC"],
+                   ppt=ppt.mean,
+                   Q=0,  ## process error off
+                   n=1)
+
+## Plot run
+plot.run()
+lines(time2,N.det,col="purple",lwd=3)
+```
+
+Here we vary our initial conditions but hold everything else constant:
+```{r}
+prow = sample.int(nrow(params),Nmc,replace=TRUE)
+
+N.I <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
+                   betaIntercept=param.mean["betaIntercept"],
+                   alpha=param.mean["tau_alpha"],
+                   betaPrecip=param.mean["betaPrecip"],
+                   beta_IC = param.mean["beta_IC"],
+                   ppt=ppt.mean,
+                   Q=0,
+                   n=Nmc)
+
+# create plot
+plot.run()
+N.I.ci = apply(N.I,2,quantile,c(0.025,0.5,0.975))
+ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
+lines(time2,N.I.ci[2,],lwd=0.5)
+```
+
+
+Here we provide the full distribution of parameters, to assess parameter uncertainty:
+```{r}
+N.IP <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
+                  betaIntercept=params[prow,"betaIntercept"],
+                  alpha=params[prow,"tau_alpha"],
+                   betaPrecip=params[prow,"betaPrecip"],
+                   beta_IC = params[prow,"beta_IC"],
+                   ppt=ppt.mean,
+                   Q=0,
+                   n=Nmc)
+
+## Plot run
+plot.run()
+N.IP.ci = apply(N.IP,2,quantile,c(0.025,0.5,0.975), na.rm=T)
+ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
+ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
+lines(time2,N.I.ci[2,],lwd=0.5)
+```
+
+Now for driver uncertainty:
+```{r}
+## sample driver rows
+drow = sample.int(nrow(ppt_ensemble),Nmc,replace=TRUE)
+
+N.IPD <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
+                  betaIntercept=params[prow,"betaIntercept"],
+                  alpha=params[prow,"tau_alpha"],
+                   betaPrecip=params[prow,"betaPrecip"],
+                   beta_IC = params[prow,"beta_IC"],
+                   ppt=ppt_ensemble[drow,],   ## Sample drivers
+                   Q=0,
+                   n=Nmc)
+
+## Plot run
+plot.run()
+N.IPD.ci = apply(N.IPD,2,quantile,c(0.025,0.5,0.975), na.rm=TRUE)
+ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3],trans))
+ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
+ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
+lines(time2,N.I.ci[2,],lwd=0.5)
+
+```
+ 
+Process error uncertainty:
+```{r}
+## process error samples
+Qmc <- 1/sqrt(params[prow,"tau_add"])  ## convert from precision to standard deviation
+
+N.IPDE <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
+                  betaIntercept=params[prow,"betaIntercept"],
+                  alpha=params[prow,"tau_alpha"],
+                   betaPrecip=params[prow,"betaPrecip"],
+                   beta_IC = params[prow,"beta_IC"],
+                   ppt=ppt_ensemble[drow,],   ## Sample drivers
+                   Q=Qmc,
+                   n=Nmc)
+
+## Plot run
+plot.run()
+N.IPDE.ci = apply(N.IPDE,2,quantile,c(0.025,0.5,0.975), na.rm=TRUE)
+ecoforecastR::ciEnvelope(time2,N.IPDE.ci[1,],N.IPDE.ci[3,],col=col.alpha(N.cols[4],trans))
+ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3],trans))
+ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
+ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
+lines(time2,N.I.ci[2,],lwd=0.5)
+
+```

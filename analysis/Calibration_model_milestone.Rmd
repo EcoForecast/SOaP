@@ -135,6 +135,7 @@ All values are less than 1.05, so the model looks like it has converged. The plo
                               "tau_obs", "beta_IC", "betaIntercept", 
                               "betaTmin", "betaPrecip","tau_alpha","alpha"),
                               n.iter = 30000)
+  saveRDS(jags.out, "data/cal.jags.out.rds")
 ```
 
 Let's visualize the model fit. This site has 10 dates, but other sites have even fewer, so this will likely be our best-fitting model.
