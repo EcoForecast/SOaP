@@ -5,7 +5,7 @@ date: "3/29/2019"
 output: html_document
 ---
 
-In this markdown document, we'll run through a forecast using our dynamic linear models for the "historical" data from 5 NEON sites. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily precipitation and minimum daily temperature, both averaged to the month level.
+In this markdown document, we'll run through a forecast using our dynamic linear models for the "historical" data from one NEON site, STER. We will model the ratio of bacteria and archaea (as one combined group) to fungi. Our current covariates are daily precipitation and minimum daily temperature, both averaged to the month level.
 
 ```{r setup}
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
@@ -21,18 +21,21 @@ library(ecoforecastR)
 library(dplyr)
 ```
 
-Now, let's format our data object. First we'll look at the diagnostics for one of our sites, STER, in-depth. Later we'll loop through and look at the model fits for the other four sites.
+Now, let's load our data object.
 
 ```{r}
-# source file that downloads/aggregates all of the data - only need to run once. takes less than 2 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
+# source file that downloads/aggregates all of the data - only need to run once. takes less than 10 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
 if(!file.exists("data/cal.jags.out.rds")){
-  cat("Please run calibration model script (Rmarkdown file) before creating these forecasts.")
+  cat("Let's run the calibration model script before creating these forecasts.")
+    source("analysis/calibration_model.R")
 }
 ### read in dataframe with response variable and covariates
+stopifnot(file.exists("data/cal.jags.out.rds"))
 jags.out <- readRDS("data/cal.jags.out.rds")
 ```
 
-Let's look at our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation. In the missing data model, we pull from distributions of our covariates; precipitation has a gamma distribution, because we can't have negative values, but temperature has a Normal distribution because negative values are fine. We have uninformative precisions drawn from a gamma distribution with shape and rate of 0.1.
+Let's look at our JAGS model code. We're including random effects for each sampling date, and fixed effects of minimum temperature and precipitation.
+
 ```{r}
 ourmodel <- "  model{
   
@@ -75,7 +78,7 @@ x[t]~dnorm(mu[t],tau_add)
 ```
 
 
-Let's take a look at our driver ensembles for our calibration period:
+Let's take a look at our driver ensembles for our calibration period, sourced from the ERA5 ensembles (n=10):
 ```{r}
 ppt <- readRDS("data/climate_ensembles.rds") # created using load_ERA5 function - only runs on SCC
 # view temperature ensemble
@@ -93,11 +96,10 @@ for(i in 1:10){
 }
 ```
 
-Load in our calibration model data:
+Load in our calibration model data to plot our real points:
 ```{r}
 real_data <- readRDS("data/calibration_model_data.rds")
 STER <- real_data[real_data$siteID=="STER",]
-jags.out <- readRDS("data/cal.jags.out.rds")
 
 mc3.out <- jags.out
 out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
@@ -136,7 +138,7 @@ ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
 
 ```
 
-Here's the function we'll use for our forecast, analogous to the process model in our JAGS code:
+Here's the function we'll use for our forecast, analogous to the process model in our JAGS code. Right now we just have the precipitation driver included for the sake of developing the uncertainty analysis code - we will add Tmin back into this script later.
 ```{r}
 # our function
 forecastN <- function(IC,betaIntercept,alpha,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
@@ -151,9 +153,9 @@ forecastN <- function(IC,betaIntercept,alpha,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
   return(N)
 }
 
-plot.run <- function(){
+plot.run <- function(ylim=c(4,31)){
   sel = seq(1,10)
-  plot(time,time,type='n',ylim=c(4,31), ylab="N")
+  plot(time,time,type='n',ylim=ylim, ylab="N")
   ecoforecastR::ciEnvelope(time1,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
   lines(time1,ci[2,sel],col="blue")
   points(time1,log(STER[,"ratio"]))
@@ -161,7 +163,7 @@ plot.run <- function(){
 ```
 
 
-Deterministic forecast (every input is a mean, rather than full distribution):
+We start with a deterministic forecast (every input is a mean, rather than full distribution):
 ```{r}
 ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
 
@@ -220,7 +222,7 @@ ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],tra
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
 
-Now for driver uncertainty (precipitation and temperature, which came from the same 10 ensembles):
+Now for driver uncertainty (precipitation, which came from the 10 ERA5 ensembles):
 ```{r}
 ## sample driver rows
 drow = sample.int(nrow(ppt_ensemble),Nmc,replace=TRUE)
@@ -268,7 +270,20 @@ ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],tra
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
 
-We don't have a random site effect because our model isn't hierarchical. We're just looking at one NEON site (STER) right now. So let's go ahead and partition the variance!
+This plot is misleading. Let's zoom out a bit...
+```{r}
+plot.run(ylim=c(-5,1000))
+N.IPDE.ci = apply(N.IPDE,2,quantile,c(0.025,0.5,0.975), na.rm=TRUE)
+ecoforecastR::ciEnvelope(time2,N.IPDE.ci[1,],N.IPDE.ci[3,],col=col.alpha(N.cols[4],trans))
+ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3],trans))
+ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
+ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
+lines(time2,N.I.ci[2,],lwd=0.5)
+```
+
+Something's wrong. But we don't know what it is, so let's partition the variance anyways!
+
+We don't have a random site effect because our model isn't hierarchical. We're just looking at one NEON site (STER) right now. 
 ```{r}
 ### calculation of variances
 varI     <- apply(N.I,2,var, na.rm=T)
@@ -279,13 +294,14 @@ varIPDE  <- apply(N.IPDE,2,var, na.rm=T)
 varMat   <- rbind(varI,varIP,varIPD,varIPDE)#,varIPDEA)
 
 ## in-sample stacked area plot
-V.pred.rel.in <- apply(varMat[-5,],2,function(x) {x/max(x)})
+V.pred.rel.in <- apply(varMat,2,function(x) {x/max(x)})
 plot(time2,V.pred.rel.in[1,],ylim=c(0,1),type='n',main="Relative Variance: In-Sample",ylab="Proportion of Variance",xlab="time")
-ciEnvelope(time2,rep(0,ncol(V.pred.rel.in)),V.pred.rel.in[1,],col=N.cols[1])
-ciEnvelope(time2,V.pred.rel.in[1,],V.pred.rel.in[2,],col=N.cols[2])
-ciEnvelope(time2,V.pred.rel.in[2,],V.pred.rel.in[3,],col=N.cols[3])
-ciEnvelope(time2,V.pred.rel.in[3,],V.pred.rel.in[4,],col=N.cols[4])
+ciEnvelope(time2,rep(0,ncol(V.pred.rel.in)),V.pred.rel.in[1,],col=N.cols[1]) # IC error = black
+ciEnvelope(time2,V.pred.rel.in[1,],V.pred.rel.in[2,],col=N.cols[2]) # parameter error = red
+ciEnvelope(time2,V.pred.rel.in[2,],V.pred.rel.in[3,],col=N.cols[3]) # driver error = green
+ciEnvelope(time2,V.pred.rel.in[3,],V.pred.rel.in[4,],col=N.cols[4]) # process error = blue
 legend("topright",legend=c("Process","Driver","Parameter","InitCond"),col=rev(N.cols[-5]),lty=1,lwd=5)
 ```
 
-We have almost no driver or parameter uncertainty (driver uncertainty is there, but for some reason being masked by process error. Parameter uncertainty looks like it was too small to plot.) 
+We have almost no driver uncertainty, so it was too small to plot. Parameter uncertainty is large, but it is still dwarfed by process error. 
+
