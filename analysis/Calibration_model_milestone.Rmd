@@ -28,7 +28,7 @@ library(dplyr)
 Now, let's format our data object. First we'll look at the diagnostics for one of our sites, STER, in-depth. Later we'll loop through and look at the model fits for the other four sites.
 
 ```{r}
-# source file that downloads/aggregates all of the data - only need to run once. takes less than 2 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
+# source file that downloads/aggregates all of the data - only need to run once. takes less than 10 min on a mac, takes much longer on non-Macs due to something (?) with the neonUtilities pacakge.
 if(!file.exists("data/calibration_model_data.rds")){
   source("data_construction/aggregate_calibration_data.R")
 }
@@ -156,7 +156,6 @@ Now let's view all 5 sites together! We have to run this for an increased number
 par(mfrow=c(5,1), mar=c(1.7,3.1,1.5,1.1), mgp=c(3,.6,0))
 # loop through all 5 sites
 sites <- c("DSNY", "HARV", "OSBS", "CPER", "STER")
-s <- 3
 for(s in 1:length(sites)) {
 
   site.data <- df[df$siteID==sites[s],]
@@ -211,7 +210,6 @@ for(s in 1:length(sites)) {
   axis.Date(1, at=seq(time[time.rng[1]],time[time.rng[2]],by='month'), format = "%Y-%m")
   ecoforecastR::ciEnvelope(time,ci[1,],ci[3,],col=ecoforecastR::col.alpha("lightBlue",0.75))
   points(time,y,pch="+",cex=0.5)
-  if (s==3){ saveRDS(out, "OSBS.jags.out.rds")}
 }
 ```
 
