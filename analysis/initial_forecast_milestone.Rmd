@@ -45,10 +45,10 @@ tau_obs ~ dgamma(a_obs,r_obs)
 tau_add ~ dgamma(a_add,r_add)
 
 #### Random Effects
-  tau_alpha~dgamma(0.1,0.1)
-  for(i in 1:n){                  
-  alpha[i]~dnorm(0,tau_alpha)
-  }
+  # tau_alpha~dgamma(0.1,0.1)
+  # for(i in 1:n){                  
+  # alpha[i]~dnorm(0,tau_alpha)
+  # }
 
 #### Fixed Effects
 beta_IC~dnorm(0,0.001)
@@ -70,7 +70,8 @@ Z[t,3] ~ dnorm(muPrecip,tauPrecip)
 
 #### Process Model
 for(t in 2:n){
-mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + alpha[t[i]]
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] 
+# + alpha[t[i]]
 x[t]~dnorm(mu[t],tau_add)
 }
 
@@ -100,6 +101,14 @@ Load in our calibration model data to plot our real points:
 ```{r}
 real_data <- readRDS("data/calibration_model_data.rds")
 STER <- real_data[real_data$siteID=="STER",]
+STER <- STER[STER$dateID > "2013-05" & STER$dateID < "2014-12",]
+
+STER$date <- as.Date(as.yearmon(STER$dateID))
+STER <- pad(STER)
+STER$times <- seq(1:18)
+y <- STER$ratio
+
+
 
 mc3.out <- jags.out
 out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
@@ -111,54 +120,60 @@ out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
 
 
 # settings
-NT = 10
+NT = 48
 s <- 1             ## Focal site for forward simulation
-Nmc = 1000         ## set number of Monte Carlo draws
-ylim = c(exp(4),exp(30))  ## set Y range on plot
+Nmc = 5000         ## set number of Monte Carlo draws
+ylim = c(4,30) ## set Y range on plot
 N.cols <- c("black","red","green","blue","orange") ## set colors
 trans <- 0.8       ## set transparancy
-time = 1:(NT*2)    ## total time
-time1 = 1:NT       ## calibration period
-time2 = time1+NT   ## forecast period
+time = 1:66   ## total time
+time1 = 1:18      ## calibration period
+time2 = 19:66   ## forecast period
 NS <- 10
 
-ppt_ensemble <- readRDS("data/climate_ensembles.rds")
-ppt_ensemble <- ppt_ensemble[[2]]
-# 
+driver_ensemble <- readRDS("data/climate_ensembles.rds")
+ppt_ensemble <- driver_ensemble[[2]]
 ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,NT) ## driver
+temp_ensemble <- driver_ensemble[[1]]
+temp.mean <- matrix(apply(temp_ensemble,2,mean),1,NT) ## driver
+
+
 ## parameters
 params <- as.matrix(out$params)
 param.mean <- apply(params,2,mean)
 ## initial conditions
 IC.orig <- as.matrix(out$predict)
-NT <- 10
+NT <- 48
 NS <- 10
 s <- 5
 ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
 
 ```
 
-Here's the function we'll use for our forecast, analogous to the process model in our JAGS code. Right now we just have the precipitation driver included for the sake of developing the uncertainty analysis code - we will add Tmin back into this script later.
+Here's the function we'll use for our forecast, analogous to the process model in our JAGS code. 
 ```{r}
 # our function
-forecastN <- function(IC,betaIntercept,alpha,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
+forecastN <- function(IC,betaIntercept,betaPrecip,betaTmin,beta_IC,ppt,tmin,Q=0,n=Nmc) {
   N <- matrix(NA,n,NT)  ## storage
   Nprev <- IC           ## initialize
   N[,1] <- Nprev
   for(t in 2:NT){
-      mu = beta_IC*Nprev + betaIntercept*1 + betaPrecip*ppt[,t] + alpha  
-      N[,t] <- rlnorm(n,log(mu),Q)  
+      mu = beta_IC*Nprev + betaIntercept*1 + betaPrecip*ppt[,t] + betaTmin*tmin[,t]
+      N[,t] <- rnorm(n,mu,Q)  
       Nprev <- N[,t]        ## update IC
   }
   return(N)
 }
 
+#observed$times <- seq(1:16)
+#observed <- STER[!is.na(STER[,"ratio"]),]
+observed <- STER
 plot.run <- function(ylim=c(4,31)){
-  sel = seq(1,10)
+  sel = seq(1,18)
   plot(time,time,type='n',ylim=ylim, ylab="N")
   ecoforecastR::ciEnvelope(time1,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
-  lines(time1,ci[2,sel],col="blue")
-  points(time1,log(STER[,"ratio"]))
+  #lines(time1,ci[2,sel],col="blue")
+  points(observed$times,log(observed$ratio), pch=18)
 }
 ```
 
@@ -170,10 +185,11 @@ ci <- apply(as.matrix(out$predict),2,quantile,c(0.025,0.5,0.975))
 
 N.det <- forecastN(IC=mean(IC.orig[,"x[10]"]),
                    betaIntercept=param.mean["betaIntercept"],
-                   alpha=param.mean["tau_alpha"],
                    betaPrecip=param.mean["betaPrecip"],
+                   betaTmin=param.mean["betaTmin"],
                    beta_IC = param.mean["beta_IC"],
                    ppt=ppt.mean,
+                   tmin=temp.mean,
                    Q=0,  ## process error off
                    n=1)
 
@@ -188,10 +204,11 @@ prow = sample.int(nrow(params),Nmc,replace=TRUE)
 
 N.I <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
                    betaIntercept=param.mean["betaIntercept"],
-                   alpha=param.mean["tau_alpha"],
                    betaPrecip=param.mean["betaPrecip"],
+                   betaTmin=param.mean["betaTmin"],
                    beta_IC = param.mean["beta_IC"],
                    ppt=ppt.mean,
+                 tmin = temp.mean,
                    Q=0,
                    n=Nmc)
 
@@ -207,10 +224,11 @@ Here we provide the full distribution of parameters, to assess parameter uncerta
 ```{r}
 N.IP <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
                   betaIntercept=params[prow,"betaIntercept"],
-                  alpha=params[prow,"tau_alpha"],
                    betaPrecip=params[prow,"betaPrecip"],
                    beta_IC = params[prow,"beta_IC"],
+                  betaTmin = params[prow,"beta_IC"],
                    ppt=ppt.mean,
+                  tmin = temp.mean,
                    Q=0,
                    n=Nmc)
 
@@ -229,10 +247,11 @@ drow = sample.int(nrow(ppt_ensemble),Nmc,replace=TRUE)
 
 N.IPD <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
                   betaIntercept=params[prow,"betaIntercept"],
-                  alpha=params[prow,"tau_alpha"],
                    betaPrecip=params[prow,"betaPrecip"],
                    beta_IC = params[prow,"beta_IC"],
+                  betaTmin = params[prow,"beta_IC"],
                    ppt=ppt_ensemble[drow,],   ## Sample drivers
+                  tmin=temp_ensemble[drow,],
                    Q=0,
                    n=Nmc)
 
@@ -253,10 +272,11 @@ Qmc <- 1/sqrt(params[prow,"tau_add"])  ## convert from precision to standard dev
 
 N.IPDE <- forecastN(IC=IC.orig[prow,"x[10]"],  ## sample IC
                   betaIntercept=params[prow,"betaIntercept"],
-                  alpha=params[prow,"tau_alpha"],
                    betaPrecip=params[prow,"betaPrecip"],
                    beta_IC = params[prow,"beta_IC"],
+                    betaTmin = params[prow,"beta_IC"],
                    ppt=ppt_ensemble[drow,],   ## Sample drivers
+                  tmin=temp_ensemble[drow,],
                    Q=Qmc,
                    n=Nmc)
 
@@ -270,9 +290,9 @@ ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],tra
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
 
-This plot is misleading. Let's zoom out a bit...
+Let's zoom out a bit...
 ```{r}
-plot.run(ylim=c(-5,1000))
+plot.run(ylim=c(-5,60))
 N.IPDE.ci = apply(N.IPDE,2,quantile,c(0.025,0.5,0.975), na.rm=TRUE)
 ecoforecastR::ciEnvelope(time2,N.IPDE.ci[1,],N.IPDE.ci[3,],col=col.alpha(N.cols[4],trans))
 ecoforecastR::ciEnvelope(time2,N.IPD.ci[1,],N.IPD.ci[3,],col=col.alpha(N.cols[3],trans))

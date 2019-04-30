@@ -55,8 +55,8 @@ soil_chem <- soil_chem %>%
   dplyr::summarise_all(funs(mean, sd), na.rm = TRUE)
 
 df1 <- merge(soil_phys, soil_chem, all=T)
-df2 <- merge(daymet, microbes) # since we don't have all=T, we will drop any dates not in the calibration abundances
-df3 <- merge(df1, df2)
+df2 <- merge(daymet, microbes, all=T) # since we don't have all=T, we will drop any dates not in the calibration abundances
+df3 <- merge(df1, df2, all = T)
 
 if(exists("CHM")){
   df4 <- merge(worldclim, CHM)

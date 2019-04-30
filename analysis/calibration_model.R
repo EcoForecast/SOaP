@@ -16,6 +16,7 @@ df <- readRDS("data/calibration_model_data.rds")
 
 # extract data from STER site
 site.data <- df[df$siteID=="STER",]
+site.data <- site.data[site.data$dateID > "2013-05" & site.data$dateID < "2014-12",]
 y <- site.data$ratio
 
 # convert dateID to date
@@ -23,9 +24,14 @@ time <- site.data$dateID
 time <- as.yearmon(time, format="%Y-%m")
 time <- as.Date(time, format="%Y-%m")
 
+site.data$date <- as.Date(as.yearmon(site.data$dateID))
+site.data <- pad(site.data)
+site.data$times <- seq(1:18)
+y <- site.data$ratio
+
 # set up data object
-z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg, site.data$pH, site.data$litterDepth)
-colnames(z) <- c("betaIntercept", "betaTmin", "betaPrecip","betapH", "betaLitter")
+z <- cbind(rep(1,length(y)), site.data$min_temp.C_avg, site.data$precip.mm_avg)
+colnames(z) <- c("betaIntercept", "betaTmin", "betaPrecip")
 data <- list(OBS=log(y),n=length(y), x_ic = 0,tau_ic = 0.00001,a_obs=0.1,
              r_obs=0.1,a_add=0.1,r_add=0.1)
 data[["Z"]] <- z
@@ -37,11 +43,11 @@ x[1] ~ dnorm(x_ic,tau_ic)
 tau_obs ~ dgamma(a_obs,r_obs)
 tau_add ~ dgamma(a_add,r_add)
 
-#### Random Effects
-tau_alpha~dgamma(0.1,0.1)
-for(i in 1:n){                  
-alpha[i]~dnorm(0,tau_alpha)
-}
+# #### Random Effects
+# tau_alpha~dgamma(0.1,0.1)
+# for(t in 1:n){                  
+# alpha[t]~dnorm(0,tau_alpha)
+# }
 
 #### Fixed Effects
 beta_IC~dnorm(0,0.001)
@@ -62,7 +68,7 @@ Z[t,3] ~ dnorm(muPrecip,tauPrecip)
 
 #### Process Model
 for(t in 2:n){
-mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] + alpha[t[i]]
+mu[t] <- beta_IC*x[t-1]  + betaIntercept*Z[t,1] + betaTmin*Z[t,2] + betaPrecip*Z[t,3] 
 
 x[t]~dnorm(mu[t],tau_add)
 }
@@ -89,7 +95,7 @@ out <- as.matrix(jags.out)
 jags.out   <- coda.samples (model = j.model,
                             variable.names = c("x","tau_add",
                                                "tau_obs", "beta_IC", "betaIntercept", 
-                                               "betaTmin", "betaPrecip","tau_alpha","alpha"),
+                                               "betaTmin", "betaPrecip"),
                             n.iter = 30000)
 saveRDS(jags.out, "data/cal.jags.out.rds")
 
