@@ -89,6 +89,8 @@ ggplot(data = calibration, aes(x = factor(dateID), y = log(ratio), color = siteI
   geom_line(aes(group = siteID)) + geom_point()
 
 saveRDS(calibration, "data/calibration_abundances.rds")
+saveRDS(validation, "data/validation_abundances.rds")
+
 
 # ##### METHOD 2 - actually this is the same thing
 # 
