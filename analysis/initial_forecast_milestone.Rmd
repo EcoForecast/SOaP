@@ -120,16 +120,18 @@ out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
 
 
 # settings
-NT = 48
+NT = 45
 s <- 1             ## Focal site for forward simulation
 Nmc = 5000         ## set number of Monte Carlo draws
 ylim = c(4,30) ## set Y range on plot
 N.cols <- c("black","red","green","blue","orange") ## set colors
 trans <- 0.8       ## set transparancy
-time = 1:66   ## total time
+time = 1:63   ## total time
 time1 = 1:18      ## calibration period
-time2 = 19:66   ## forecast period
+time2 = 19:63   ## forecast period
 NS <- 10
+dates <- seq(as.Date("2013-06-01"), by = "month", length.out = 63)
+dates2 <- seq(as.Date("2014-12-01"), by = "month", length.out = 45)
 
 driver_ensemble <- readRDS("data/climate_ensembles.rds")
 ppt_ensemble <- driver_ensemble[[2]]
@@ -170,10 +172,10 @@ forecastN <- function(IC,betaIntercept,betaPrecip,betaTmin,beta_IC,ppt,tmin,Q=0,
 observed <- STER
 plot.run <- function(ylim=c(4,31)){
   sel = seq(1,18)
-  plot(time,time,type='n',ylim=ylim, ylab="N")
-  ecoforecastR::ciEnvelope(time1,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
+  plot(dates,dates,type='n',ylim=ylim, ylab="N")
+  ecoforecastR::ciEnvelope(observed$date,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
   #lines(time1,ci[2,sel],col="blue")
-  points(observed$times,log(observed$ratio), pch=18)
+  points(observed$date,log(observed$ratio), pch=18)
 }
 ```
 
@@ -195,7 +197,7 @@ N.det <- forecastN(IC=mean(IC.orig[,"x[10]"]),
 
 ## Plot run
 plot.run()
-lines(time2,N.det,col="purple",lwd=3)
+lines(dates2,N.det,col="purple",lwd=3)
 ```
 
 Here we vary our initial conditions but hold everything else constant:
