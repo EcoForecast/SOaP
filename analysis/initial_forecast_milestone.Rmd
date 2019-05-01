@@ -108,8 +108,6 @@ STER <- pad(STER)
 STER$times <- seq(1:18)
 y <- STER$ratio
 
-
-
 mc3.out <- jags.out
 out = list(params=NULL,predict=NULL,model=ourmodel,data=data)
  mfit = as.matrix(mc3.out,chains=TRUE)
