@@ -19,6 +19,7 @@ library(daymetr)
 library(zoo)
 library(ecoforecastR)
 library(dplyr)
+library(padr)
 ```
 
 Now, let's load our data object.
