@@ -8,6 +8,10 @@ source("data_construction/other_covariates/daymet_SOaP.R")
 }
 daymet <- readRDS("data/daymet_monthly.rds")
 
+# ensemble data
+ensembles <- readRDS("data/climate_ensembles2.rds")
+
+
 # ITS:16S ratios
 if(!file.exists("data/calibration_abundances.rds")){
   source("data_construction/microbial_data/01_download_abundance_data.R")
@@ -15,11 +19,15 @@ if(!file.exists("data/calibration_abundances.rds")){
 microbes <- readRDS("data/calibration_abundances.rds")
 
 # soil phys
-source("data_construction/NEON_covariates/NEON_soil_phys_iterate.R")
+if(!file.exists("data/NEON_soil_phys_merge.rds")){
+  source("data_construction/NEON_covariates/NEON_soil_phys_iterate.R")
+}
 soil_phys_raw <- readRDS("data/NEON_soil_phys_merge.rds")
 
 # soil chem
-source("data_construction/NEON_covariates/NEON_soil_chem_iterate.R")
+if(!file.exists("data/NEON_soil_chm_merge.rds")){
+  source("data_construction/NEON_covariates/NEON_soil_chem_iterate.R")
+}
 soil_chem_raw <- readRDS("data/NEON_soil_chm_merge.rds")
 
 #### spatial covariates - not used for initial time-series ####
@@ -66,5 +74,32 @@ if(exists("CHM")){
 }
 
 master.df$log_BF_ratio <- log(master.df$ratio)
+
+sites = c('HARV', 'DSNY', 'OSBS', 'STER', 'CPER')
+site.ensemble.summary <- list()
+for (i in 1:length(sites)){
+  site.name <- sites[[i]]
+  site.ensembles <- ensembles[[which(names(ensembles)==site.name)]]
+site.temp <- site.ensembles[[1]]
+site.precip <- site.ensembles[[2]]
+dateIDs <- substr(x = as.character(seq(as.Date("2013-01-01"), by = "month", length.out = 72)),  1,  7)
+colnames(site.temp) <- dateIDs
+colnames(site.precip) <- dateIDs
+site.temp.df <- t(site.temp)
+temp.mean <- rowMeans(site.temp.df)
+temp.sd <- apply(site.temp.df,1, sd)
+
+site.precip.df <- t(site.precip)
+precip.mean <- rowMeans(site.precip.df)
+precip.sd <- apply(site.precip.df,1, sd)
+
+climate_summary <- data.frame(siteID= rep(site.name, 72), dateID = rownames(site.temp.df), temp.mean, temp.sd, precip.mean, precip.sd)
+site.ensemble.summary[[i]] <- climate_summary
+}
+
+site.ensembles <- plyr::rbind.fill(site.ensemble.summary)
+
+master.df <- merge(site.ensembles, master.df, by = c("siteID", "dateID"))
+master.df$dateID <- as.character(master.df$dateID)
 
 saveRDS(master.df, "data/calibration_model_data.rds")
