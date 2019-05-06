@@ -41,7 +41,7 @@ forecastN <- function(IC,betaIntercept,betaPrecip,beta_IC,ppt,Q=0,n=Nmc) {
 }
 
 # plotting function
-plot.run <- function(observed = STER, ts = 10, ylim=c(0,20)){
+plot.run <- function(observed = STER, ts = 9, ylim=c(5,12)){
   ts.col <- rownames(observed[which(observed$timestep == ts),])[[1]]
   ts.col <- as.numeric(ts.col)
   in.ts <- observed[1:ts.col,]
@@ -50,13 +50,13 @@ plot.run <- function(observed = STER, ts = 10, ylim=c(0,20)){
   ecoforecastR::ciEnvelope(in.ts$date,ci[1,sel],ci[3,sel],col=col.alpha("lightBlue",0.6))
   lines(dates_fit,ci[2,sel],col="blue")
   points(in.ts$date,log(in.ts$ratio), pch=18)
-  axis(2, at=seq(from = 0, to = 20, by=5), las=2)
+  axis(2, at=seq(from = ylim[[1]], to = ylim[[2]], by=2), las=2)
   title(paste0("Forecast for ", site_name), xlab="time", ylab="log(Bacteria:Fungi)")
 }
 
-n.iter <- 30000
+#n.iter <- 90000
 #n.iter <- 10000 # sufficient for STER, but other sites require many more iterations
-#n.iter <- 170000 
+n.iter <- 170000 
 #n.iter <- 300000
 
 # subset to our site
@@ -66,6 +66,9 @@ site_name = "STER"
 # site_name = "HARV"
 # site_name = "CPER"
 
+sites <- c("DSNY", "STER", "OSBS", "HARV", "CPER")
+for (s in 1:5){
+  site_name <- sites[[s]]
 STER <- cal[cal$siteID==site_name,]
 
 ## remove leading, empty rows from our sites
@@ -187,3 +190,4 @@ ecoforecastR::ciEnvelope(dates_fcast,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[
 lines(dates_fcast,N.I.ci[2,],lwd=0.5)
 }
 }, movie.name = paste0(site_name, "_forecast.gif"))
+}

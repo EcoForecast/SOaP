@@ -27,12 +27,6 @@ pred_obs_allsites <- list()
 sites <- c("DSNY", "STER", "OSBS", "HARV", "CPER")
 for (s in 1:5){
   site_name <- sites[s]
-# subset to our site
-#site_name = "DSNY"
-#site_name = "STER"
-# site_name = "OSBS"
-# site_name = "HARV"
-# site_name = "CPER"
 
 STER <- cal[cal$siteID==site_name,]
 
@@ -115,8 +109,8 @@ ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,ncol(ppt_ensemble)) ## take mean
 
 ts_loop <- (length(unique(na.omit(STER_fcast$ratio)))):length(unique(na.omit(STER_1$ratio)))
 
-  t <- length(ts_loop)
   t <- 2
+  #t <- 1
     ts <- ts_loop[t] 
     ts.col <- rownames(STER_1[which(STER_1$timestep == ts),])[[1]]
     ts.col <- as.numeric(ts.col)
