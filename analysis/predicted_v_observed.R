@@ -1,21 +1,4 @@
-## data exploration
-# 
-# 
-# # read in calibration data
-# cal <- readRDS("data/calibration_model_data.rds")
-# cal$date <- as.Date(as.yearmon(cal$dateID))
-# cal <- cal[cal$dateID > "2013-05" & cal$dateID <= "2014-12",]
-# 
-# # read in validation data
-# val <- readRDS("data/valibration_model_data.rds")
-# val$date <- as.Date(as.yearmon(val$dateID))
-# 
-# raw_abun <- readRDS("data/raw_abundances.rds")
-# 
-# abun <- raw_abun[raw_abun$ratio >= 1,]
-# abun$collectDate <- as.Date(abun$collectDate)
-# 
-
+# this script creates forecasts for 5 NEON sites, starting after the first 2016 point. it then creates a figure comparing the predicted values to the observed values.
 
 library(animation)
 library(rjags)
@@ -24,10 +7,6 @@ library(zoo)
 library(ecoforecastR)
 library(dplyr)
 library(padr)
-
-
-
-
 
 source("functions/fitModel.R")
 
@@ -129,12 +108,7 @@ STER_1 <- plyr::rbind.fill(STER, val_STER)
 STER_1$timestep <- na.locf(STER_1$timestep.y,na.rm = F)
 dates_all <- seq(as.Date(STER$date[1]), by = "month", length.out = (nrow(STER_1))) # all dates
 
-#if (site_name == "STER"|site_name == "OSBS"|site_name=="HARV"|site_name=="CPER"){ 
 substract.n <- 13
-#} else if (site_name == "DSNY"){
-#  substract.n <- 12
-#}
-
 driver_ensemble <- all_driver_ensemble[[which(names(all_driver_ensemble)==site_name)]]
 ppt_ensemble <- driver_ensemble[[2]][,(substract.n-end_2014):60] # subset to after last 2014 date
 ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,ncol(ppt_ensemble)) ## take means per month
@@ -169,31 +143,6 @@ ts_loop <- (length(unique(na.omit(STER_fcast$ratio)))):length(unique(na.omit(STE
     Qmc <- 1/sqrt(params[prow,"tau_add"])  ## convert from precision to standard deviation
     drow = sample.int(nrow(ppt_ensemble),Nmc,replace=TRUE)
     
-    N.I <- forecastN(IC=IC.orig[prow,paste0("x[",ts.col,"]")],  ## sample IC
-                     betaIntercept=param.mean["betaIntercept"],
-                     betaPrecip=param.mean["betaPrecip"],
-                     beta_IC = param.mean["beta_IC"],
-                     ppt=ppt.mean,
-                     Q=0,
-                     n=Nmc)
-    N.IP <- forecastN(IC=IC.orig[prow,paste0("x[",ts.col,"]")],  ## sample IC
-                      betaIntercept=params[prow,"betaIntercept"],
-                      betaPrecip=params[prow,"betaPrecip"],
-                      beta_IC = params[prow,"beta_IC"],
-                      ppt=ppt.mean,
-                      Q=0,
-                      n=Nmc)
-    
-    
-    N.IPD.p <- forecastN(IC=IC.orig[prow,paste0("x[",ts.col,"]")],  ## sample IC
-                         betaIntercept=params[prow,"betaIntercept"],
-                         betaPrecip=params[prow,"betaPrecip"],
-                         beta_IC = params[prow,"beta_IC"],
-                         ppt=ppt_ensemble[drow,],   ## Sample drivers
-                         Q=0,
-                         n=Nmc)
-    
-    
     N.IPDE <- forecastN(IC=IC.orig[prow,paste0("x[",ts.col,"]")],  ## sample IC
                         betaIntercept=params[prow,"betaIntercept"],
                         betaPrecip=params[prow,"betaPrecip"],
@@ -201,34 +150,15 @@ ts_loop <- (length(unique(na.omit(STER_fcast$ratio)))):length(unique(na.omit(STE
                         ppt=ppt_ensemble[drow,],   ## Sample drivers
                         Q=Qmc,
                         n=Nmc)
-    N.I.ci = apply(N.I,2,quantile,c(0.025,0.5,0.975))
-    N.IP.ci = apply(N.IP,2,quantile,c(0.025,0.5,0.975), na.rm=T)
-    N.IPD.p.ci = apply(N.IPD.p,2,quantile,c(0.025,0.5,0.975))
+
     N.IPDE.ci = apply(N.IPDE,2,quantile,c(0.025,0.5,0.975), na.rm=TRUE)
     
-    plot.run(observed = STER_1[1:ts.col,], ts = ts)
-    ecoforecastR::ciEnvelope(dates_fcast,N.IPDE.ci[1,],N.IPDE.ci[3,],col=col.alpha(N.cols[4],trans))
-    ecoforecastR::ciEnvelope(dates_fcast,N.IPD.p.ci[1,],N.IPD.p.ci[3,],col=col.alpha(N.cols[3],trans))
-    ecoforecastR::ciEnvelope(dates_fcast,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],trans))
-    ecoforecastR::ciEnvelope(dates_fcast,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
-    lines(dates_fcast,N.I.ci[2,],lwd=0.5)
-    
-    
-    n.pred <-     length(ts_loop)-2
-    n.all <- length(unique(na.omit(STER_1$log_BF_ratio)))
     STER_pred <- STER_1[(ts.col+1):nrow(STER_1),]
-    
     pred <- N.IPDE.ci[2,]
     pred <- N.IPDE.ci
     pred <- pred[,which(!is.na(STER_pred$log_BF_ratio))]
     obs <- unique(na.omit(STER_pred$log_BF_ratio))
-    plot(obs, pred[2,], pch = 16, cex=.7, xlim = c(1,18), ylim=c(1,18))
-    fit <- lm(pred[2,] ~ obs)
-    abline(fit)
-    abline(1,1, lwd=3)
-    #ecoforecastR::ciEnvelope(obs, pred[1,], pred[3,], col=col.alpha(N.cols[3],trans))    
     plot.df <- data.frame(siteID = rep(site_name, length(obs)), obs = obs, pred = pred[2,])
-    
     pred_obs_allsites[[s]] <- plot.df
 }
 
@@ -247,23 +177,3 @@ abline(fit, col="red")
 abline(1,1, lwd=3)
 title(paste0("observed ~ predicted, all sites"), xlab="predicted", ylab="observed")
 dev.off()
-
-
-#     
-#     
-#     obs <- unique(na.omit(STER_1$log_BF_ratio))
-# #    obs <- unique(STER_1$log_BF_ratio)[(n.all-n.pred):n.all]
-#     length(ts_loop)
-#     plot(pred, obs, xlim = c(5,14), ylim=c(5,14))
-#     
-#     
-#     ci[,which(!is.na(STER_1[1:ts.col,]$log_BF_ratio))]
-#     
-#     pred <- ci[,which(!is.na(STER_1[1:ts.col,]$log_BF_ratio))]
-#     obs.na <- STER_1[1:ts.col,]$log_BF_ratio
-#     plot(obs.na, ci[2,], xlim = c(5,14), ylim=c(5,14))
-#     fit <- lm(ci[2,] ~ obs.na)
-#     abline(fit)
-#     abline(1,1, lwd=3)
-#     ecoforecastR::ciEnvelope(obs, pred[1,], pred[3,], col=col.alpha(N.cols[1],trans))    
-#     
