@@ -19,6 +19,7 @@ library(daymetr)
 library(zoo)
 library(ecoforecastR)
 library(dplyr)
+library(padr)
 ```
 
 Now, let's load our data object.
@@ -324,4 +325,3 @@ legend("topright",legend=c("Process","Driver","Parameter","InitCond"),col=rev(N.
 ```
 
 We have almost no driver uncertainty, so it was too small to plot. Parameter uncertainty is large, but it is still dwarfed by process error. 
-
